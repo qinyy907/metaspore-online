@@ -15,6 +15,8 @@
 #
 from cloud_consul import putServiceConfig
 from common import DumpToYaml, S
+from online_flow import ServiceInfo, DataSource, FeatureInfo, CFModelInfo, RankModelInfo, OnlineFlow
+from online_generator import OnlineGenerator
 from service_config import FeatureConfig, Condition, FieldAction, RecommendConfig, TransformConfig, Chain, \
     ExperimentItem, OnlineServiceConfig
 
@@ -165,6 +167,43 @@ def get_movielens_demo_config():
     online_configure = OnlineServiceConfig(feature_service, recommend_service)
     return DumpToYaml(online_configure)
 
+def gen_online_flow():
+    services = dict()
+    services["mongo"] = ServiceInfo("mongo:6.0.1", ["movielens"], {
+        "MONGO_INITDB_ROOT_USERNAME": "root",
+        "MONGO_INITDB_ROOT_PASSWORD": "example"
+    })
+    user = DataSource("user", "mongo", "movielens", [{"user_id": "str"}, {"gender": "str"}, {"age": "int"},
+                                        {"occupation": "str"}, {"zip": "str"}, {"recent_movie_ids": "str"},
+                                        {"last_movie": "str"}, {"last_genre": "str"},
+                                        {"user_greater_than_three_rate": "decimal"},
+                                        {"user_movie_avg_rating": "double"}])
+    item = DataSource("item", "mongo", "movielens", [{"movie_id": "str"}, {"genre": "str"}, {"title": "str"},
+                                        {"imdb_url": "str"}, {"queryid": "str"}])
+    interact = DataSource("item_feature", "mongo", "movielens",
+                          [{"movie_id": "str"}, {"watch_volume": "double"}, {"genre": "str"},
+                           {"movie_avg_rating": "double"},
+                           {"movie_greater_than_three_rate": "decimal"},
+                           {"genre_watch_volume": "double"},
+                           {"genre_movie_avg_rating": "double"},
+                           {"genre_greater_than_three_rate": "decimal"}])
+    source = FeatureInfo(user, item, interact, [{"user_id": "str"}], "user_id", "movie_id", "recent_movie_ids", "\u0001")
+    cf_models = list()
+    itemcf = DataSource("itemcf", "mongo", "movielens",
+                        [{"key": "str"}, {"value": {"list_struct": {"_1": "str", "_2": "double"}}}])
+    cf_models.append(CFModelInfo("itemcf", itemcf))
+    swing = DataSource("swing", "mongo", "movielens",
+                       [{"key": "str"}, {"value": {"list_struct": {"_1": "str", "_2": "double"}}}])
+    cf_models.append(CFModelInfo("swing", swing))
+    twotower_models = list()
+    random_model = None
+    rank_models = list()
+    rank_models.append(RankModelInfo("widedeep", "movie_lens_wdl_test",
+                                     [{"dnn_sparse": ["movie_id"]}, {"lr_sparse": ["movie_id"]}]))
+    online = OnlineFlow(source, random_model, cf_models, twotower_models, rank_models, services)
+    pipeline = OnlineGenerator(configure=online)
+    print(pipeline.gen_docker_compose())
+    print(pipeline.gen_server_config())
 
 if __name__ == '__main__':
     putServiceConfig(get_movielens_demo_config())

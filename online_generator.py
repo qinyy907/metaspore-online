@@ -312,9 +312,9 @@ class OnlineGenerator(object):
 
 if __name__ == '__main__':
     services = dict()
-    services["mongo"] = ServiceInfo("mongo:6.0.1", ["movielens"], {
-        "MONGO_INITDB_ROOT_USERNAME": "root",
-        "MONGO_INITDB_ROOT_PASSWORD": "example"
+    services["mongo"] = ServiceInfo("mongo:6.0.1", ["jpa"], {
+        "MONGO_INITDB_ROOT_USERNAME": "jpa",
+        "MONGO_INITDB_ROOT_PASSWORD": "Dmetasoul_123456"
     })
     user = DataSource("user", "mongo", "movielens", [{"user_id": "str"}, {"gender": "str"}, {"age": "int"},
                                         {"occupation": "str"}, {"zip": "str"}, {"recent_movie_ids": "str"},

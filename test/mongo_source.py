@@ -43,6 +43,9 @@ class MongodbSource(object):
             quote_plus(user), quote_plus(password), host, port)
         self._client = MongoClient(uri)
 
+    def info(self):
+        print(self._client.is_mongos)
+
     def insert_object(self, table, collect, data):
         self._client.get_database()
         self._client[collect][table].insert_one(data)
@@ -74,4 +77,6 @@ def put_demo_data(collection="movielens", host="192.168.221.128", port=27017):
 
 if __name__ == "__main__":
     # put_demo_data("movielens", "192.168.221.128")
-    put_demo_data("movielens", "127.0.0.1")
+    # put_demo_data("movielens", "127.0.0.1")
+    mangodb_source = MongodbSource("127.0.0.1", 27015, "jpa", "Dmetasoul_123456")
+    mangodb_source.info()
