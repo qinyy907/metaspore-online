@@ -32,7 +32,7 @@ class OnlineExecutor(object):
     def execute_up(self):
         docker_compose_yaml = "docker-compose.yml"
         compose_content = self._generator.gen_docker_compose()
-        docker_compose = open("docker-compose.yml", "w")
+        docker_compose = open(docker_compose_yaml, "w")
         docker_compose.write(compose_content)
         docker_compose.close()
         if run_cmd(["docker-compose", "-f", docker_compose_yaml, "up"]) == 0:
