@@ -1,0 +1,5 @@
+python-consul2==0.1.5
+pymongo==4.2.0
+attrs==22.1.0
+ruamel.yaml==0.17.21
+# docker-py==1.10.6
