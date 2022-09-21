@@ -38,6 +38,11 @@ class MilvusInfo(object):
     fields: list[str]
     serviceName: str
 
+@frozen
+class RandomModelInfo(object):
+    name: str
+    bound: int
+    source: DataSource
 
 @frozen
 class CFModelInfo(object):
@@ -74,6 +79,7 @@ class FeatureInfo(object):
 @frozen
 class OnlineFlow(object):
     source: FeatureInfo
+    random_model: RankModelInfo
     cf_models: list[CFModelInfo]
     twotower_models: list[TwoTowerModelInfo]
     rank_models: list[RankModelInfo]

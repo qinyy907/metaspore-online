@@ -15,6 +15,7 @@
 #
 from pymongo import MongoClient
 from urllib.parse import quote_plus
+from decimal import Decimal
 import json
 
 
@@ -27,6 +28,13 @@ def update_item(item):
         item['user_id'] = str(item['user_id'])
     if "movie_id" in item and not isinstance(item["movie_id"], str):
         item["movie_id"] = str(item["movie_id"])
+    decimal_value = []
+    for key, value in item.items():
+        if isinstance(value, dict) and "$numberDecimal" in value:
+            decimal_value.append(key)
+    for key in decimal_value:
+        value = item.pop(key)
+        item[key] = Decimal(value["$numberDecimal"])
 
 
 class MongodbSource(object):

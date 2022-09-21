@@ -134,6 +134,53 @@ class OnlineGenerator(object):
                                          fieldActions=user_profile_actions, output=["user_id", "item_id", "item_score"])
         recall_services = list()
         recall_experiments = list()
+        if self.configure.random_model:
+            model_info = self.configure.random_model
+            append_source_table(feature_config, model_info.name, model_info.source)
+            feature_config.add_algoTransform(name="algotransform_random",
+                                             fieldActions=list[FieldAction(names=["hash_id"], types=["int"],
+                                                func="randomGenerator", options={"bound": model_info.bound}),
+                                                               FieldAction(names=["score"], types=["double"],
+                                                                           func="setValue",
+                                                                           options={"value": 1.0})
+                                             ],
+                                             output=["hash_id", "score"])
+            feature_config.add_feature(name="feature_random",
+                                       depend=["source_table_request", "algotransform_random", model_info.name],
+                                       select=["source_table_request.user_id", "algotransform_random.score",
+                                               "%s.value" % model_info.name],
+                                       condition=[Condition(left="algotransform_random.hash_id",
+                                                            right="%s.key" % model_info.name)])
+            field_actions = list()
+            field_actions.append(FieldAction(names=["toItemScore.user_id", "item_score"],
+                                             types=["str", "map_str_double"],
+                                             func="toItemScore", fields=["user_id", "value", "score"]))
+            field_actions.append(
+                FieldAction(names=["user_id", "item_id", "score", "origin_scores"],
+                            types=["str", "str", "double", "map_str_double"],
+                            func="recallCollectItem", input=["toItemScore.user_id", "item_score"]))
+            algoTransform_name = "algotransform_%s" % model_info.name
+            feature_config.add_algoTransform(name=algoTransform_name,
+                                             taskName="ItemMatcher", feature=["feature_random"],
+                                             options={"algo-name": model_info.name},
+                                             fieldActions=field_actions,
+                                             output=["user_id", "item_id", "score", "origin_scores"])
+            service_name = "recall_%s" % model_info.name
+            recommend_config.add_service(name=service_name, tasks=[algoTransform_name],
+                                         options={"maxReservation": 200})
+            experiment_name = "recall.%s" % model_info.name
+            recommend_config.add_experiment(name=experiment_name,
+                                            options={"maxReservation": 100}, chains=[
+                    Chain(then=[service_name], transforms=[
+                        TransformConfig(name="cutOff"),
+                        TransformConfig(name="updateField", option={
+                            "input": ["score", "origin_scores"], "output": ["origin_scores"],
+                            "updateOperator": "putOriginScores"
+                        })
+                    ])
+                ])
+            recall_experiments.append(experiment_name)
+            recall_services.append(service_name)
         if self.configure.cf_models:
             for model_info in self.configure.cf_models:
                 append_source_table(feature_config, model_info.name, model_info.source)
@@ -152,7 +199,7 @@ class OnlineGenerator(object):
                                 types=["str", "str", "double", "map_str_double"],
                                 func="recallCollectItem", input=["toItemScore.user_id", "item_score"]))
                 algoTransform_name = "algotransform_%s" % model_info.name
-                feature_config.add_algoTransform(name="algotransform_%s" % model_info.name,
+                feature_config.add_algoTransform(name=algoTransform_name,
                                                  taskName="ItemMatcher", feature=[feature_name],
                                                  options={"algo-name": model_info.name},
                                                  fieldActions=field_actions,
@@ -219,6 +266,8 @@ class OnlineGenerator(object):
                                                  fields=["origin_scores"]))
                 field_actions.append(FieldAction(names=["rankScore"], types=["float"],
                                                  algoColumns=model_info.column_info,
+                                                 options={"modelName": model_info.model,
+                                                          "targetKey": "output", "targetIndex": 0},
                                                  func="predictScore", input=["typeTransform.item_id"]))
                 algoTransform_name = "algotransform_%s" % model_info.name
                 feature_config.add_algoTransform(name=algoTransform_name,
@@ -255,7 +304,7 @@ class OnlineGenerator(object):
                 ExperimentItem(name=name, ratio=1.0/len(rank_experiments)) for name in rank_experiments
             ])
         recommend_config.add_scene(name="guess-you-like", chains=[
-            Chain(then=["match", "rank"])],
+            Chain(then=["recall", "rank"])],
             columns=[{"user_id": "str"}, {"item_id": "str"}])
         online_configure = OnlineServiceConfig(feature_config, recommend_config)
         return DumpToYaml(online_configure).encode("utf-8").decode("latin1")
@@ -290,10 +339,11 @@ if __name__ == '__main__':
                        [{"key": "str"}, {"value": {"list_struct": {"_1": "str", "_2": "double"}}}])
     cf_models.append(CFModelInfo("swing", swing))
     twotower_models = list()
+    random_model = None
     rank_models = list()
     rank_models.append(RankModelInfo("widedeep", "movie_lens_wdl_test",
                                      [{"dnn_sparse": ["movie_id"]}, {"lr_sparse": ["movie_id"]}]))
-    online = OnlineFlow(source, cf_models, twotower_models, rank_models, services)
+    online = OnlineFlow(source, random_model, cf_models, twotower_models, rank_models, services)
     pipeline = OnlineGenerator(configure=online)
     print(pipeline.gen_docker_compose())
     print(pipeline.gen_server_config())
