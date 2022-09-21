@@ -36,7 +36,7 @@ class DataSource(object):
 class MilvusInfo(object):
     collection: str
     fields: list[str]
-    serviceName: str = field(default="milvus")
+    serviceName: str
 
 
 @frozen
