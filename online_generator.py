@@ -15,20 +15,27 @@
 #
 from common import DumpToYaml
 from compose_config import OnlineDockerCompose
-from online_flow import OnlineFlow, ServiceInfo, DataSource, FeatureInfo, CFModelInfo, RankModelInfo, \
-    set_flow_default_value
+from online_flow import OnlineFlow, ServiceInfo, DataSource, FeatureInfo, CFModelInfo, RankModelInfo, DockerInfo, \
+    RandomModelInfo
 from service_config import get_source_option, Source, Condition, FieldAction, \
     FeatureConfig, RecommendConfig, TransformConfig, Chain, ExperimentItem, OnlineServiceConfig
 
 
-def append_source_table(feature_config, name, datasource):
+def append_source_table(feature_config, name, datasource, default_columns=[]):
     if feature_config is None or not datasource:
         raise ValueError("datasource must set!")
     source_name = datasource.serviceName
     if datasource.collection:
         source_name = "%s_%s" % (datasource.serviceName, datasource.collection)
+    if not feature_config.find_source(source_name):
+        raise ValueError("source: %s must set in services!" % source_name)
+    columns = datasource.columns
+    if not columns:
+        columns = default_columns
+    if not columns:
+        raise ValueError("ds columns must not be empty")
     feature_config.add_sourceTable(name=name, source=source_name, table=datasource.table,
-                                   columns=datasource.columns)
+                                   columns=columns)
 
 
 def columns_has_key(columns, key):
@@ -45,18 +52,26 @@ class OnlineGenerator(object):
         self.configure = kwargs.get("configure")
         if not self.configure or not isinstance(self.configure, OnlineFlow):
             raise ValueError("MetaSpore Online need input online configure data!")
-        set_flow_default_value(self.configure)
 
     def gen_docker_compose(self):
         online_docker_compose = OnlineDockerCompose()
-        if "recommend" not in self.configure.services:
-            online_docker_compose.add_service("recommend", "container_recommend_service")
-        if "model" not in self.configure.services:
-            online_docker_compose.add_service("model", "container_model_service")
-        if self.configure.services:
-            for name, info in self.configure.services.items():
-                online_docker_compose.add_service(name, "container_%s_service" % name,
-                                                  image=info.image, environment=info.environment)
+        dockers = {}
+        if self.configure.dockers:
+            dockers.update(self.configure.dockers)
+        if "recommend" not in dockers:
+            dockers["recommend"] = DockerInfo("dmetasoul/recommend-service-11:1.0", {})
+        no_mode_service = True
+        for name in dockers.keys():
+            if str(name).startswith("model"):
+                no_mode_service = False
+                break
+        if no_mode_service:
+            dockers["model"] = \
+                DockerInfo("swr.cn-southwest-2.myhuaweicloud.com/dmetasoul-public/metaspore-serving-release:cpu-v1.0.1",
+                           {})
+        for name, info in dockers.items():
+            online_docker_compose.add_service(name, "container_%s_service" % name,
+                                              image=info.image, environment=info.environment)
         online_recommend_service = online_docker_compose.services.get("recommend")
         if not online_recommend_service:
             raise ValueError("container_recommend_service init fail!")
@@ -75,32 +90,37 @@ class OnlineGenerator(object):
             raise ValueError("services must set!")
         for name, info in self.configure.services.items():
             if not info.collection:
-                feature_config.add_source(name=name, image=info.image,
+                feature_config.add_source(name=name, kind=info.kind,
                                           options=get_source_option(self.configure, name, None))
             else:
                 for db in info.collection:
-                    feature_config.add_source(name="%s_%s" % (name, db), image=info.image,
+                    feature_config.add_source(name="%s_%s" % (name, db), kind=info.kind,
                                               options=get_source_option(self.configure, name, db))
         feature_info = self.configure.source
         if not feature_info:
             raise ValueError("feature_info must set!")
         append_source_table(feature_config, "source_table_user", feature_info.user)
         append_source_table(feature_config, "source_table_item", feature_info.item)
-        append_source_table(feature_config, "source_table_summary", feature_info.summary)
         user_key = feature_info.user_key_name or "user_id"
-        items_key = feature_info.user_item_ids_name or "item_ids"
+        items_key = feature_info.user_item_ids_name or "user_bhv_item_seq"
         item_key = feature_info.item_key_name or "item_id"
         if not columns_has_key(feature_info.user.columns, user_key) \
                 or not columns_has_key(feature_info.user.columns, items_key):
             raise ValueError("user column must has user_key_name and user_item_ids_name!")
         if not columns_has_key(feature_info.item.columns, item_key):
             raise ValueError("item column must has item_key_name!")
+        append_source_table(feature_config, "source_table_summary", feature_info.summary)
         if not columns_has_key(feature_info.summary.columns, item_key):
             raise ValueError("summary column must has item_key_name!")
-        if not feature_info.request or not columns_has_key(feature_info.request, user_key):
-            raise ValueError("request column must set!")
+        request_columns = feature_info.request
+        if not request_columns:
+            request_columns = [{user_key: "str"}, {item_key: "str"}]
+        if not columns_has_key(request_columns, user_key):
+            raise ValueError("request column must set user_key!")
+        if not columns_has_key(request_columns, item_key):
+            raise ValueError("request column must set item_key!")
         feature_config.add_sourceTable(
-            name="source_table_request", source="request", columns=feature_info.request)
+            name="source_table_request", source="request", columns=request_columns)
 
         user_fields = list()
         user_key_type = "str"
@@ -110,7 +130,7 @@ class OnlineGenerator(object):
             if user_key in field_item:
                 user_key_type = field_item.get(user_key)
         request_fields = list()
-        for field_item in feature_info.request:
+        for field_item in request_columns:
             request_fields.extend(field_item.keys())
             if user_key in field_item and field_item.get(user_key) != user_key_type:
                 raise ValueError("request user key type set error!")
@@ -125,6 +145,11 @@ class OnlineGenerator(object):
                                    select=["source_table_user.%s" % field for field in user_fields],
                                    condition=[Condition(left="source_table_request.%s" % user_key, type="left",
                                                         right="source_table_user.%s" % user_key)])
+        feature_config.add_feature(name="feature_item_summary",
+                                   depend=["source_table_request", "source_table_summary"],
+                                   select=["source_table_summary.%s" % field for field in user_fields],
+                                   condition=[Condition(left="source_table_request.%s" % item_key, type="left",
+                                                        right="source_table_summary.%s" % item_key)])
         user_profile_actions = list([user_key_action, ])
         user_profile_actions.append(FieldAction(names=["item_ids"], types=["list_str"],
                                                 options={"splitor": feature_info.user_item_ids_split or "\u0001"},
@@ -137,15 +162,21 @@ class OnlineGenerator(object):
         recall_experiments = list()
         if self.configure.random_model:
             model_info = self.configure.random_model
-            append_source_table(feature_config, model_info.name, model_info.source)
+            if not model_info.name:
+                raise ValueError("random_model model name must not be empty")
+            append_source_table(feature_config, model_info.name, model_info.source,
+                                [{"key": "int"}, {"value": {"list_struct": {"_1": "str", "_2": "double"}}}])
+            random_bound = model_info.bound
+            if random_bound <= 0:
+                random_bound = 10
             feature_config.add_algoTransform(name="algotransform_random",
-                                             fieldActions=list[FieldAction(names=["hash_id"], types=["int"],
-                                                                           func="randomGenerator",
-                                                                           options={"bound": model_info.bound}),
-                                                               FieldAction(names=["score"], types=["double"],
-                                                                           func="setValue",
-                                                                           options={"value": 1.0})
-                                             ],
+                                             fieldActions=[FieldAction(names=["hash_id"], types=["int"],
+                                                                       func="randomGenerator",
+                                                                       options={"bound": random_bound}),
+                                                           FieldAction(names=["score"], types=["double"],
+                                                                       func="setValue",
+                                                                       options={"value": 1.0})
+                                                           ],
                                              output=["hash_id", "score"])
             feature_config.add_feature(name="feature_random",
                                        depend=["source_table_request", "algotransform_random", model_info.name],
@@ -185,7 +216,10 @@ class OnlineGenerator(object):
             recall_services.append(service_name)
         if self.configure.cf_models:
             for model_info in self.configure.cf_models:
-                append_source_table(feature_config, model_info.name, model_info.source)
+                if not model_info.name:
+                    raise ValueError("cf_models model name must not be empty")
+                append_source_table(feature_config, model_info.name, model_info.source,
+                                    [{"key": "str"}, {"value": {"list_struct": {"_1": "str", "_2": "double"}}}])
                 feature_name = "feature_%s" % model_info.name
                 feature_config.add_feature(name=feature_name, depend=["algotransform_user", model_info.name],
                                            select=["algotransform_user.%s" % user_key, "algotransform_user.item_score",
@@ -242,6 +276,8 @@ class OnlineGenerator(object):
         rank_experiments = list()
         if self.configure.rank_models:
             for model_info in self.configure.rank_models:
+                if not model_info.name or not model_info.model:
+                    raise ValueError("rank_models model name or model must not be empty")
                 feature_name = "feature_%s" % model_info.name
                 select_fields = list()
                 select_fields.extend(["source_table_user.%s" % key for key in user_fields])
@@ -266,8 +302,11 @@ class OnlineGenerator(object):
                                                  input=["typeTransform.%s" % item_key, "rankScore"],
                                                  func="rankCollectItem",
                                                  fields=["origin_scores"]))
+                column_info = model_info.column_info
+                if not column_info:
+                    column_info = [{"dnn_sparse": [item_key]}, {"lr_sparse": [item_key]}]
                 field_actions.append(FieldAction(names=["rankScore"], types=["float"],
-                                                 algoColumns=model_info.column_info,
+                                                 algoColumns=column_info,
                                                  options={"modelName": model_info.model,
                                                           "targetKey": "output", "targetIndex": 0},
                                                  func="predictScore", input=["typeTransform.%s" % item_key]))
@@ -319,9 +358,10 @@ class OnlineGenerator(object):
 
 def get_demo_jpa_flow():
     services = dict()
-    services["mongo"] = ServiceInfo("mongo:6.0.1", ["jpa"], {
-        "MONGO_INITDB_ROOT_USERNAME": "root",
-        "MONGO_INITDB_ROOT_PASSWORD": "example"
+    services["mongo"] = ServiceInfo("192.168.0.22", 27017, "mongodb", ["jpa"], {
+        "MONGO_INITDB_ROOT_USERNAME": "jpa",
+        "MONGO_INITDB_ROOT_PASSWORD": "Dmetasoul_123456"
+
     })
     user = DataSource("amazonfashion_user_feature", "mongo", "jpa", [{"user_id": "str"},
                                                                      {"user_bhv_item_seq": "str"}])
@@ -332,17 +372,15 @@ def get_demo_jpa_flow():
                           {"image": "str"},
                           {"url": "str"},
                           {"price": "double"}])
-    source = FeatureInfo(user, item, summary, [{"user_id": "str"}], "user_id", "item_id", "user_bhv_item_seq", "\u0001")
+    source = FeatureInfo(user, item, summary, None, None, None, None, None)
     cf_models = list()
-    swing = DataSource("amazonfashion_swing", "mongo", "jpa",
-                       [{"key": "str"}, {"value": {"list_struct": {"_1": "str", "_2": "double"}}}])
+    swing = DataSource("amazonfashion_swing", "mongo", "jpa", None)
     cf_models.append(CFModelInfo("swing", swing))
     twotower_models = list()
-    random_model = None
+    random_model = RandomModelInfo("pop", 0, DataSource("amazonfashion_pop", "mongo", "jpa", None))
     rank_models = list()
-    rank_models.append(RankModelInfo("widedeep", "movie_lens_wdl_test",
-                                     [{"dnn_sparse": ["item_id"]}, {"lr_sparse": ["item_id"]}]))
-    return OnlineFlow(source, random_model, cf_models, twotower_models, rank_models, services)
+    rank_models.append(RankModelInfo("widedeep", "movie_lens_wdl_test", None))
+    return OnlineFlow(source, random_model, cf_models, twotower_models, rank_models, services, None)
 
 
 if __name__ == '__main__':

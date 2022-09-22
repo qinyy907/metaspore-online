@@ -26,14 +26,14 @@ def get_source_option(online_config, name, collection):
     if not name or not online_config or name not in online_config.services:
         return options
     service = online_config.services.get(name)
-    if service.environment is None:
-        service.environment = {}
-    if service.image.startswith("mongo"):
+    if service.options is None:
+        service.options = {}
+    if service.kind.lower() == "mongodb":
         if collection:
             options["uri"] = "mongodb://{}:{}@{}/{}?authSource=admin".format(
-                quote_plus(service.environment.get("MONGO_INITDB_ROOT_USERNAME") or "root"),
-                quote_plus(service.environment.get("MONGO_INITDB_ROOT_PASSWORD") or "example"),
-                "${%s_HOST:localhost}:${%s_PORT:27017}" % (str(name).upper(), str(name).upper()),
+                quote_plus(service.options.get("MONGO_INITDB_ROOT_USERNAME") or "root"),
+                quote_plus(service.options.get("MONGO_INITDB_ROOT_PASSWORD") or "example"),
+                "${%s_HOST:%s}:${%s_PORT:%d}" % (str(name).upper(), service.host, str(name).upper(), service.port),
                 collection,
         )
     return options
@@ -49,8 +49,6 @@ class Source(BaseDefaultConfig):
         super().__init__(**kwargs)
         if "name" not in kwargs:
             raise ValueError("source config name must not be empty!")
-        if "image" in kwargs:
-            self.setKind(self.dict_data.pop("image"))
         if self.kind.lower() == "mongodb":
             if not self.options.get("uri") or not str(self.options.get("uri")).startswith("mongodb://"):
                 raise ValueError("source mongodb config uri error!")
@@ -72,20 +70,6 @@ class Source(BaseDefaultConfig):
                 self.options["standalone"] = {"host": "localhost", "port": 6379}
         if self.options:
             self.dict_data["options"] = self.options
-
-    def setKind(self, image):
-        if not image:
-            self.kind = "Request"
-        if str(image).startswith("mongo"):
-            self.kind = 'MongoDB'
-        elif str(image).startswith("redis"):
-            self.kind = 'Redis'
-        elif str(image).startswith("mysql"):
-            self.kind = 'JDBC'
-        # to append other database
-        else:
-            self.kind = "Request"
-        self.dict_data["kind"] = self.kind
 
 
 @define
@@ -162,8 +146,6 @@ class FieldAction(BaseDefaultConfig):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        if not self.fields and not self.input:
-            raise ValueError("FieldAction config input or fields must not be empty!")
 
     def to_dict(self):
         data = dict()
@@ -200,8 +182,6 @@ class AlgoTransform(BaseDefaultConfig):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        if not self.feature and not self.algoTransform:
-            raise ValueError("AlgoTransform config feature or algoTransform must not be empty!")
 
     def to_dict(self):
         if self.fieldActions:
@@ -404,6 +384,13 @@ class FeatureConfig(BaseDefaultConfig):
 
     def add_source(self, **kwargs):
         self.source.append(Source(**kwargs))
+
+    def find_source(self, name):
+        if self.source:
+            for item in self.source:
+                if item.name == name:
+                    return True
+        return False
 
     def add_sourceTable(self, **kwargs):
         self.sourceTable.append(SourceTable(**kwargs))

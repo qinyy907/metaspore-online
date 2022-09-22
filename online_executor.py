@@ -16,8 +16,18 @@
 import subprocess
 
 from cloud_consul import putServiceConfig
-from online_flow import ServiceInfo, DataSource, FeatureInfo, CFModelInfo, OnlineFlow, set_flow_default_value
+from online_flow import DataSource, FeatureInfo, CFModelInfo, OnlineFlow
 from online_generator import OnlineGenerator
+from enum import Enum
+
+
+class Status(Enum):
+    Init = 0
+    DockerCompose_Up_Success = 1
+    DockerCompose_Up_Fail = 2
+    Service_Config_Success = 3
+    Service_Down_Success = 4
+    Service_Down_Fail = 5
 
 
 def run_cmd(command):
@@ -29,6 +39,7 @@ def run_cmd(command):
 class OnlineExecutor(object):
     def __init__(self, config):
         self._config = config
+        self._status = Status.Init
         self._generator = OnlineGenerator(configure=config)
 
     def execute_up(self, **kwargs):
@@ -38,25 +49,44 @@ class OnlineExecutor(object):
         docker_compose.write(compose_content)
         docker_compose.close()
         if run_cmd(["docker-compose", "-f", docker_compose_yaml, "up"]) == 0:
+            self._status = Status.DockerCompose_Up_Success
             online_recommend_config = self._generator.gen_server_config()
             putServiceConfig(online_recommend_config)
+            self._status = Status.Service_Config_Success
             print("online flow up success!")
         else:
+            self._status = Status.DockerCompose_Up_Fail
             print("online flow up fail!")
 
     def execute_down(self, **kwargs):
-        if run_cmd(["docker-compose", "down"]) == 0:
-            print("online flow down success!")
+        if self._status not in [Status.Service_Config_Success,
+                                Status.DockerCompose_Up_Success]:
+            print("online flow is not up!")
         else:
-            print("online flow down fail!")
+            if run_cmd(["docker-compose", "down"]) == 0:
+                self._status = Status.Service_Down_Success
+                print("online flow down success!")
+            else:
+                self._status = Status.Service_Down_Fail
+                print("online flow down fail!")
 
     def execute_status(self, **kwargs):
-        #  to do
-        print("online flow execute status success!")
+        if self._status == Status.Init:
+            print("online flow execute init success!")
+        if self._status == Status.DockerCompose_Up_Success:
+            print("online flow execute dockerCompose up success!")
+        if self._status == Status.DockerCompose_Up_Fail:
+            print("online flow execute dockerCompose up fail!")
+        if self._status == Status.Service_Config_Success:
+            print("online flow execute set service config success!")
+        if self._status == Status.Service_Down_Success:
+            print("online flow execute dockerCompose down success!")
+        if self._status == Status.Service_Down_Fail:
+            print("online flow execute dockerCompose down fail!")
 
     def execute_reload(self, **kwargs):
         new_flow = kwargs.setdefault("configure", None)
-        self._config.update(new_flow)
+        self._config = new_flow
         self._generator = OnlineGenerator(configure=self._config)
         self.execute_down(**kwargs)
         self.execute_up(**kwargs)
@@ -77,6 +107,6 @@ if __name__ == "__main__":
     cf_models = list()
     swing = DataSource("amazonfashion_swing", "mongo", "jpa", None)
     cf_models.append(CFModelInfo("swing", swing))
-    online = set_flow_default_value(OnlineFlow(source, None, cf_models, [], [], None))
+    online = OnlineFlow(source, None, cf_models, [], [], None, None)
     executor = OnlineExecutor(online)
     executor.execute_up()
