@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+from cloud_consul import putServiceConfig
 from common import DumpToYaml
 from compose_config import OnlineDockerCompose
 from online_flow import OnlineFlow, ServiceInfo, DataSource, FeatureInfo, CFModelInfo, RankModelInfo, DockerInfo, \
@@ -385,5 +386,8 @@ def get_demo_jpa_flow():
 
 if __name__ == '__main__':
     pipeline = OnlineGenerator(configure=get_demo_jpa_flow())
-    print(pipeline.gen_docker_compose())
-    print(pipeline.gen_server_config())
+    compose_content = pipeline.gen_docker_compose()
+    docker_compose = open("docker_compose.yaml", "w")
+    docker_compose.write(compose_content)
+    docker_compose.close()
+    putServiceConfig(pipeline.gen_server_config())
