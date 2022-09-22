@@ -17,7 +17,7 @@ import subprocess
 
 from cloud_consul import putServiceConfig
 from online_flow import DataSource, FeatureInfo, CFModelInfo, OnlineFlow
-from online_generator import OnlineGenerator
+from online_generator import OnlineGenerator, get_demo_jpa_flow
 from enum import Enum
 
 
@@ -94,19 +94,6 @@ class OnlineExecutor(object):
 
 
 if __name__ == "__main__":
-    user = DataSource("amazonfashion_user_feature", "mongo", "jpa", [{"user_id": "str"},
-                                                                     {"user_bhv_item_seq": "str"}])
-    item = DataSource("amazonfashion_item_feature", "mongo", "jpa", [{"item_id": "str"}, {"category": "str"}])
-    summary = DataSource("amazonfashion_item_summary", "mongo", "jpa",
-                         [{"item_id": "str"}, {"category": "str"}, {"title": "str"},
-                          {"description": "str"},
-                          {"image": "str"},
-                          {"url": "str"},
-                          {"price": "double"}])
-    source = FeatureInfo(user, item, summary, None, None, None, None, None)
-    cf_models = list()
-    swing = DataSource("amazonfashion_swing", "mongo", "jpa", None)
-    cf_models.append(CFModelInfo("swing", swing))
-    online = OnlineFlow(source, None, cf_models, [], [], None, None)
+    online = get_demo_jpa_flow()
     executor = OnlineExecutor(online)
     executor.execute_up()
