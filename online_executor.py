@@ -16,6 +16,7 @@
 import subprocess
 
 from cloud_consul import putServiceConfig
+from online_flow import ServiceInfo, DataSource, FeatureInfo, CFModelInfo, OnlineFlow, set_flow_default_value
 from online_generator import OnlineGenerator
 
 
@@ -27,10 +28,11 @@ def run_cmd(command):
 
 class OnlineExecutor(object):
     def __init__(self, config):
+        self._config = config
         self._generator = OnlineGenerator(configure=config)
 
-    def execute_up(self):
-        docker_compose_yaml = "docker-compose.yml"
+    def execute_up(self, **kwargs):
+        docker_compose_yaml = kwargs.setdefault("docker_compose_file", "docker-compose.yml")
         compose_content = self._generator.gen_docker_compose()
         docker_compose = open(docker_compose_yaml, "w")
         docker_compose.write(compose_content)
@@ -42,16 +44,39 @@ class OnlineExecutor(object):
         else:
             print("online flow up fail!")
 
-    def execute_down(self):
+    def execute_down(self, **kwargs):
         if run_cmd(["docker-compose", "down"]) == 0:
             print("online flow down success!")
         else:
             print("online flow down fail!")
 
-    def execute_status(self):
+    def execute_status(self, **kwargs):
         #  to do
         print("online flow execute status success!")
 
-    def execute_reload(self):
-        #  to do
+    def execute_reload(self, **kwargs):
+        new_flow = kwargs.setdefault("configure", None)
+        self._config.update(new_flow)
+        self._generator = OnlineGenerator(configure=self._config)
+        self.execute_down(**kwargs)
+        self.execute_up(**kwargs)
         print("online flow reload success!")
+
+
+if __name__ == "__main__":
+    user = DataSource("amazonfashion_user_feature", "mongo", "jpa", [{"user_id": "str"},
+                                                                     {"user_bhv_item_seq": "str"}])
+    item = DataSource("amazonfashion_item_feature", "mongo", "jpa", [{"item_id": "str"}, {"category": "str"}])
+    summary = DataSource("amazonfashion_item_summary", "mongo", "jpa",
+                         [{"item_id": "str"}, {"category": "str"}, {"title": "str"},
+                          {"description": "str"},
+                          {"image": "str"},
+                          {"url": "str"},
+                          {"price": "double"}])
+    source = FeatureInfo(user, item, summary, None, None, None, None, None)
+    cf_models = list()
+    swing = DataSource("amazonfashion_swing", "mongo", "jpa", None)
+    cf_models.append(CFModelInfo("swing", swing))
+    online = set_flow_default_value(OnlineFlow(source, None, cf_models, [], [], None))
+    executor = OnlineExecutor(online)
+    executor.execute_up()
