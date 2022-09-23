@@ -33,12 +33,12 @@ class DockerBuildInfo(BaseDefaultConfig):
 class OnlineService(BaseDefaultConfig):
     container_name: str
     image: str
-    command: list[str]
-    environment: dict[str, any] = field(init=False, default={})
-    ports: list[int] = field(init=False, default=[])
-    depends_on: list[str] = field(init=False, default=[])
-    volumes: list[str] = field(init=False, default=[])
-    healthcheck: dict[str, any] = field(init=False, default={})
+    command: list = field()
+    environment: dict = field(init=False, default={})
+    ports: list = field(init=False, default=[])
+    depends_on: list = field(init=False, default=[])
+    volumes: list = field(init=False, default=[])
+    healthcheck: dict = field(init=False, default={})
     restart: Literal['on-failure', 'always'] = field(init=False, default="on-failure")
     build: DockerBuildInfo = field(init=False, default=None)
 
@@ -63,7 +63,7 @@ class OnlineService(BaseDefaultConfig):
 @define
 class OnlineDockerCompose(BaseDefaultConfig):
     version: Literal['3.5'] = field(init=False, default='3.5')
-    services: dict[str, OnlineService] = field(init=False, default={})
+    services: dict = field(init=False, default={})
     networks: dict = field(init=False, default={"default": {"name": "recommend"}})
 
     def __init__(self, **kwargs):
@@ -82,7 +82,7 @@ class OnlineDockerCompose(BaseDefaultConfig):
         service_kwargs = dict()
         service_kwargs.update(kwargs)
         if name == "recommend":
-            service_kwargs["ports"] = kwargs.setdefault("ports", [8080])
+            service_kwargs["ports"] = kwargs.setdefault("ports", [8081])
             service_kwargs["image"] = kwargs.setdefault("image", "dmetasoul/recommend-service-11:1.0")
             service_kwargs["command"] = kwargs.setdefault("command", "java -jar recommend-service-1.0-SNAPSHOT.jar")
             service_kwargs["depends_on"] = kwargs.setdefault("depends_on", ["consul"])

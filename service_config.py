@@ -29,13 +29,7 @@ def get_source_option(online_config, name, collection):
     if service.options is None:
         service.options = {}
     if service.kind.lower() == "mongodb":
-        if collection:
-            options["uri"] = "mongodb://{}:{}@{}/{}?authSource=admin".format(
-                quote_plus(service.options.get("MONGO_INITDB_ROOT_USERNAME") or "root"),
-                quote_plus(service.options.get("MONGO_INITDB_ROOT_PASSWORD") or "example"),
-                "${%s_HOST:%s}:${%s_PORT:%d}" % (str(name).upper(), service.host, str(name).upper(), service.port),
-                collection,
-        )
+        options["uri"] = "mongodb://jpa:Dmetasoul_123456@172.17.0.1:27017/jpa?authSource=jpa"
     return options
 
 
@@ -43,16 +37,19 @@ def get_source_option(online_config, name, collection):
 class Source(BaseDefaultConfig):
     name: str
     kind: Literal['MongoDB', 'JDBC', 'Redis', 'Request'] = field(init=False, default="Request")
-    options: dict[str, any] = field(init=False, default={})
+    options: dict = field(init=False, default={})
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         if "name" not in kwargs:
             raise ValueError("source config name must not be empty!")
+        self.dict_data['kind'] = 'Request'
         if self.kind.lower() == "mongodb":
+            self.dict_data['kind'] = 'MongoDB'
             if not self.options.get("uri") or not str(self.options.get("uri")).startswith("mongodb://"):
                 raise ValueError("source mongodb config uri error!")
         if self.kind.lower() == "jdbc":
+            self.dict_data['kind'] = 'JDBC'
             if not self.options.get("uri") or not str(self.options.get("uri")).startswith("jdbc:"):
                 raise ValueError("source jdbc config uri error!")
             if not self.options.get("user"):
@@ -65,6 +62,7 @@ class Source(BaseDefaultConfig):
                 if str(self.options["driver"]) != "com.mysql.cj.jdbc.Driver":
                     raise ValueError("source jdbc mysql config driver must be com.mysql.cj.jdbc.Driver!")
         if self.kind.lower() == "redis":
+            self.dict_data['kind'] = 'Redis'
             if not self.options.get("standalone") and not self.options.get("sentinel") and not self.options.get(
                     "cluster"):
                 self.options["standalone"] = {"host": "localhost", "port": 6379}
@@ -76,12 +74,12 @@ class Source(BaseDefaultConfig):
 class SourceTable(BaseDefaultConfig):
     name: str
     source: str
-    columns: list[dict[str, any]]
+    columns: list
     table: str = field(init=False)
     prefix: str = field(init=False, default="")
-    sqlFilters: list[str] = field(init=False, default=[])
-    filters: list[dict[str, dict[str, any]]] = field(init=False, default=[])
-    options: dict[str, any] = field(init=False, default={})
+    sqlFilters: list = field(init=False, default=[])
+    filters: list = field(init=False, default=[])
+    options: dict = field(init=False, default={})
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -113,11 +111,11 @@ class Condition(BaseDefaultConfig):
 @define
 class Feature(BaseDefaultConfig):
     name: str
-    depend: list[str]
-    select: list[str]
-    condition: list[Condition] = field(init=False, default=[])
-    immediateFrom: list[str] = field(init=False, default=[])
-    filters: list[dict[str, dict[str, any]]] = field(init=False, default=[])
+    depend: list
+    select: list
+    condition: list = field(init=False, default=[])
+    immediateFrom: list = field(init=False, default=[])
+    filters: list = field(init=False, default=[])
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -136,13 +134,13 @@ class Feature(BaseDefaultConfig):
 
 @define
 class FieldAction(BaseDefaultConfig):
-    names: list[str]
-    types: list[str]
-    fields: list[str]
-    input: list[str]
+    names: list
+    types: list
+    fields: list
+    input: list
     func: str
-    options: dict[str, any] = field(init=False, default={})
-    algoColumns: list[dict[str, list[str]]] = field(init=False, default=[])
+    options: dict = field(init=False, default={})
+    algoColumns: list = field(init=False, default=[])
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -173,12 +171,12 @@ class FieldAction(BaseDefaultConfig):
 @define
 class AlgoTransform(BaseDefaultConfig):
     name: str
-    fieldActions: list[FieldAction]
-    output: list[str]
+    fieldActions: list
+    output: list
     taskName: str = field(init=False, default=None)
-    feature: list[str] = field(init=False, default=[])
-    algoTransform: list[str] = field(init=False, default=[])
-    options: dict[str, any] = field(init=False, default={})
+    feature: list = field(init=False, default=[])
+    algoTransform: list = field(init=False, default=[])
+    options: dict = field(init=False, default={})
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -203,7 +201,7 @@ class AlgoTransform(BaseDefaultConfig):
 @define
 class TransformConfig(BaseDefaultConfig):
     name: str
-    option: dict[str, any] = field(init=False, default={})
+    option: dict = field(init=False, default={})
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -216,10 +214,10 @@ class TransformConfig(BaseDefaultConfig):
 
 @define
 class Chain(BaseDefaultConfig):
-    then: list[str] = field(init=False, default=[])
-    when: list[str] = field(init=False, default=[])
-    options: dict[str, any] = field(init=False, default={})
-    transforms: list[TransformConfig] = field(init=False, default=[])
+    then: list = field(init=False, default=[])
+    when: list = field(init=False, default=[])
+    options: dict = field(init=False, default={})
+    transforms: list = field(init=False, default=[])
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -250,8 +248,8 @@ class Layer(BaseDefaultConfig):
     name: str
     bucketizer: str
     taskName: str = field(init=False, default=None)
-    experiments: list[ExperimentItem] = field(init=False, default=[])
-    options: dict[str, any] = field(init=False, default={})
+    experiments: list = field(init=False, default=[])
+    options: dict = field(init=False, default={})
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -270,8 +268,8 @@ class Layer(BaseDefaultConfig):
 class Experiment(BaseDefaultConfig):
     name: str
     taskName: str = field(init=False, default=None)
-    chains: list[Chain] = field(init=False, default=[])
-    options: dict[str, any] = field(init=False, default={})
+    chains: list = field(init=False, default=[])
+    options: dict = field(init=False, default={})
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -290,9 +288,9 @@ class Experiment(BaseDefaultConfig):
 class Scene(BaseDefaultConfig):
     name: str
     taskName: str = field(init=False, default=None)
-    chains: list[Chain] = field(init=False, default=[])
-    columns: list[dict[str, any]] = field(init=False, default=[])
-    options: dict[str, any] = field(init=False, default={})
+    chains: list = field(init=False, default=[])
+    columns: list = field(init=False, default=[])
+    options: dict = field(init=False, default={})
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -313,11 +311,11 @@ class Scene(BaseDefaultConfig):
 class Service(BaseDefaultConfig):
     name: str
     taskName: str = field(init=False, default=None)
-    tasks: list[str] = field(init=False, default=[])
-    options: dict[str, any] = field(init=False, default={})
-    preTransforms: list[TransformConfig] = field(init=False, default=[])
-    transforms: list[TransformConfig] = field(init=False, default=[])
-    columns: list[dict[str, any]] = field(init=False, default=[])
+    tasks: list = field(init=False, default=[])
+    options: dict = field(init=False, default={})
+    preTransforms: list = field(init=False, default=[])
+    transforms: list = field(init=False, default=[])
+    columns: list = field(init=False, default=[])
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -340,10 +338,10 @@ class Service(BaseDefaultConfig):
 
 @define
 class RecommendConfig(BaseDefaultConfig):
-    layers: list[Layer] = field(default=[])
-    experiments: list[Experiment] = field(default=[])
-    scenes: list[Scene] = field(default=[])
-    services: list[Service] = field(default=[])
+    layers: list = field(default=[])
+    experiments: list = field(default=[])
+    scenes: list = field(default=[])
+    services: list = field(default=[])
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -374,10 +372,10 @@ class RecommendConfig(BaseDefaultConfig):
 
 @define
 class FeatureConfig(BaseDefaultConfig):
-    source: list[Source] = field(default=[])
-    sourceTable: list[SourceTable] = field(default=[])
-    feature: list[Feature] = field(default=[])
-    algoTransform: list[AlgoTransform] = field(default=[])
+    source: list = field(default=[])
+    sourceTable: list = field(default=[])
+    feature: list = field(default=[])
+    algoTransform: list = field(default=[])
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)

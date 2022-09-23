@@ -20,7 +20,7 @@ from attrs import field
 @frozen
 class DockerInfo(object):
     image: str
-    environment: dict[str, any]
+    environment: dict
 
 
 @frozen
@@ -28,8 +28,8 @@ class ServiceInfo(object):
     host: str
     port: int
     kind: str
-    collection: list[str]
-    options: dict[str, any]
+    collection: list
+    options: dict
 
 
 @frozen
@@ -37,13 +37,13 @@ class DataSource(object):
     table: str
     serviceName: str
     collection: str
-    columns: list[dict[str, any]]
+    columns: list
 
 
 @frozen
 class MilvusInfo(object):
     collection: str
-    fields: list[str]
+    fields: list
     serviceName: str
 
 
@@ -71,7 +71,7 @@ class TwoTowerModelInfo(object):
 class RankModelInfo(object):
     name: str
     model: str
-    column_info: dict[str, list[str]]
+    column_info: dict
 
 
 @frozen
@@ -79,7 +79,7 @@ class FeatureInfo(object):
     user: DataSource
     item: DataSource
     summary: DataSource
-    request: list[dict[str, any]]
+    request: list
     user_key_name: str
     item_key_name: str
     user_item_ids_name: str
@@ -90,11 +90,11 @@ class FeatureInfo(object):
 class OnlineFlow(object):
     source: FeatureInfo
     random_model: RankModelInfo
-    cf_models: list[CFModelInfo]
-    twotower_models: list[TwoTowerModelInfo]
-    rank_models: list[RankModelInfo]
-    services: dict[str, ServiceInfo]
-    dockers: dict[str, ServiceInfo]
+    cf_models: list
+    twotower_models: list
+    rank_models: list
+    services: dict
+    dockers: dict
 
 
 
