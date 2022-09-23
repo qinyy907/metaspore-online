@@ -172,7 +172,7 @@ class OnlineGenerator(object):
             if not model_info.name:
                 raise ValueError("random_model model name must not be empty")
             append_source_table(feature_config, model_info.name, model_info.source,
-                                [{"key": "int"}, {"value": {"list_struct": {"_1": "str", "_2": "double"}}}])
+                                [{"key": "int"}, {"value": {"list_struct": {"item_id": "str", "score": "double"}}}])
             random_bound = model_info.bound
             if random_bound <= 0:
                 random_bound = 10
@@ -372,13 +372,15 @@ def get_demo_jpa_flow():
     })
     user = DataSource("amazonfashion_user_feature", "mongo", "jpa", [{"user_id": "str"},
                                                                      {"user_bhv_item_seq": "str"}])
-    item = DataSource("amazonfashion_item_feature", "mongo", "jpa", [{"item_id": "str"}, {"category": "str"}])
+    item = DataSource("amazonfashion_item_feature", "mongo",
+                      "jpa", [{"item_id": "str"}, {"brand": "str"}, {"category": "str"}])
     summary = DataSource("amazonfashion_item_summary", "mongo", "jpa",
-                         [{"item_id": "str"}, {"category": "str"}, {"title": "str"},
+                         [{"item_id": "str"}, {"brand": "str"},
+                          {"category": "str"}, {"title": "str"},
                           {"description": "str"},
                           {"image": "str"},
                           {"url": "str"},
-                          {"price": "double"}])
+                          {"price": "str"}])
     source = FeatureInfo(user, item, summary, None, None, None, None, None)
     cf_models = list()
     swing = DataSource("amazonfashion_swing", "mongo", "jpa", None)
