@@ -171,8 +171,10 @@ class OnlineGenerator(object):
             model_info = self.configure.random_model
             if not model_info.name:
                 raise ValueError("random_model model name must not be empty")
+            key_name = "key"
+            value_name = "value_list"
             append_source_table(feature_config, model_info.name, model_info.source,
-                                [{"key": "int"}, {"value": {"list_struct": {"item_id": "str", "score": "double"}}}])
+                                [{key_name: "int"}, {value_name: {"list_struct": {"item_id": "str", "score": "double"}}}])
             random_bound = model_info.bound
             if random_bound <= 0:
                 random_bound = 10
@@ -188,13 +190,13 @@ class OnlineGenerator(object):
             feature_config.add_feature(name="feature_random",
                                        depend=["source_table_request", "algotransform_random", model_info.name],
                                        select=["source_table_request.%s" % user_key, "algotransform_random.score",
-                                               "%s.value" % model_info.name],
+                                               "%s.%s" % (model_info.name, value_name)],
                                        condition=[Condition(left="algotransform_random.hash_id",
-                                                            right="%s.key" % model_info.name)])
+                                                            right="%s.%s" % (model_info.name, key_name))])
             field_actions = list()
             field_actions.append(FieldAction(names=["toItemScore.%s" % user_key, "item_score"],
                                              types=["str", "map_str_double"],
-                                             func="toItemScore", fields=[user_key, "value", "score"]))
+                                             func="toItemScore", fields=[user_key, value_name, "score"]))
             field_actions.append(
                 FieldAction(names=[user_key, item_key, "score", "origin_scores"],
                             types=["str", "str", "double", "map_str_double"],
