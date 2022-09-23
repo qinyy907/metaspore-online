@@ -68,10 +68,18 @@ class TwoTowerModelInfo(object):
 
 
 @frozen
+class CrossFeature(object):
+    name: str
+    join: str
+    fields: list
+
+
+@frozen
 class RankModelInfo(object):
     name: str
     model: str
     column_info: dict
+    cross_features: list
 
 
 @frozen

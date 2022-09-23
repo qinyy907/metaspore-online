@@ -17,7 +17,7 @@ from cloud_consul import putServiceConfig
 from common import DumpToYaml
 from compose_config import OnlineDockerCompose
 from online_flow import OnlineFlow, ServiceInfo, DataSource, FeatureInfo, CFModelInfo, RankModelInfo, DockerInfo, \
-    RandomModelInfo
+    RandomModelInfo, CrossFeature
 from service_config import get_source_option, Source, Condition, FieldAction, \
     FeatureConfig, RecommendConfig, TransformConfig, Chain, ExperimentItem, OnlineServiceConfig
 
@@ -302,6 +302,14 @@ class OnlineGenerator(object):
                                                                 right="rank_%s.%s" % (model_info.name, item_key)),
                                                       ])
                 field_actions = list()
+                cross_features = list()
+                if model_info.cross_features:
+                    for cross_item in model_info.cross_features:
+                        cross_features.append(cross_item.name)
+                        field_actions.append(FieldAction(names=[cross_item.name],
+                                                         types=["str"],
+                                                         func="concatField", options={"join": cross_item.join},
+                                                         fields=cross_item.fields))
                 field_actions.append(FieldAction(names=[user_key, "typeTransform.%s" % item_key],
                                                  types=["str", "str"],
                                                  func="typeTransform",
@@ -314,11 +322,13 @@ class OnlineGenerator(object):
                 column_info = model_info.column_info
                 if not column_info:
                     column_info = [{"dnn_sparse": [item_key]}, {"lr_sparse": [item_key]}]
+                algo_inputs = ["typeTransform.%s" % item_key]
+                algo_inputs.extend(cross_features)
                 field_actions.append(FieldAction(names=["rankScore"], types=["float"],
                                                  algoColumns=column_info,
                                                  options={"modelName": model_info.model,
                                                           "targetKey": "output", "targetIndex": 0},
-                                                 func="predictScore", input=["typeTransform.%s" % item_key]))
+                                                 func="predictScore", input=algo_inputs))
                 algoTransform_name = "algotransform_%s" % model_info.name
                 feature_config.add_algoTransform(name=algoTransform_name,
                                                  taskName="AlgoInference", feature=[feature_name],
@@ -390,7 +400,12 @@ def get_demo_jpa_flow():
     twotower_models = list()
     random_model = RandomModelInfo("pop", 0, DataSource("amazonfashion_pop", "mongo", "jpa", None))
     rank_models = list()
-    rank_models.append(RankModelInfo("widedeep", "movie_lens_wdl_test", None))
+    rank_models.append(RankModelInfo("widedeep", "amazonfashion_widedeep",
+                                     {"dnn_sparse": ["user_id", "item_id", "brand", "category"],
+                                      "lr_sparse": ["user_id", "item_id", "category", "brand",
+                                                    "user_id#brand", "user_id#category"]},
+                                     [CrossFeature("user_id#brand", "#", ["user_id", "brand"]),
+                                      CrossFeature("user_id#category", "#", ["user_id", "category"])]))
     return OnlineFlow(source, random_model, cf_models, twotower_models, rank_models, services, None)
 
 
