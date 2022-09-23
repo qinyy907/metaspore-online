@@ -397,7 +397,7 @@ def get_demo_jpa_flow():
 if __name__ == '__main__':
     pipeline = OnlineGenerator(configure=get_demo_jpa_flow())
     compose_content = pipeline.gen_docker_compose()
-    docker_compose = open("docker_compose.yaml", "w")
+    docker_compose = open("docker_compose.yml", "w")
     docker_compose.write(compose_content)
     docker_compose.close()
     putServiceConfig(pipeline.gen_server_config())
