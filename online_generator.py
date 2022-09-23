@@ -401,9 +401,9 @@ def get_demo_jpa_flow():
     random_model = RandomModelInfo("pop", 0, DataSource("amazonfashion_pop", "mongo", "jpa", None))
     rank_models = list()
     rank_models.append(RankModelInfo("widedeep", "amazonfashion_widedeep",
-                                     {"dnn_sparse": ["user_id", "item_id", "brand", "category"],
-                                      "lr_sparse": ["user_id", "item_id", "category", "brand",
-                                                    "user_id#brand", "user_id#category"]},
+                                     [{"dnn_sparse": ["user_id", "item_id", "brand", "category"]},
+                                      {"lr_sparse": ["user_id", "item_id", "category", "brand",
+                                                    "user_id#brand", "user_id#category"]}],
                                      [CrossFeature("user_id#brand", "#", ["user_id", "brand"]),
                                       CrossFeature("user_id#category", "#", ["user_id", "category"])]))
     return OnlineFlow(source, random_model, cf_models, twotower_models, rank_models, services, None)
