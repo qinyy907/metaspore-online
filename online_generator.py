@@ -141,6 +141,12 @@ class OnlineGenerator(object):
             item_fields.extend(field_item.keys())
             if item_key in field_item:
                 item_key_type = field_item.get(item_key)
+        summary_fields = list()
+        for field_item in feature_info.summary.columns:
+            summary_fields.extend(field_item.keys())
+            if item_key in field_item:
+                if item_key_type != field_item.get(item_key):
+                    raise ValueError("item and summary item key type set error!")
 
         feature_config.add_feature(name="feature_user", depend=["source_table_request", "source_table_user"],
                                    select=["source_table_user.%s" % field for field in user_fields],
@@ -148,7 +154,7 @@ class OnlineGenerator(object):
                                                         right="source_table_user.%s" % user_key)])
         feature_config.add_feature(name="feature_item_summary",
                                    depend=["source_table_request", "source_table_summary"],
-                                   select=["source_table_summary.%s" % field for field in user_fields],
+                                   select=["source_table_summary.%s" % field for field in summary_fields],
                                    condition=[Condition(left="source_table_request.%s" % item_key, type="left",
                                                         right="source_table_summary.%s" % item_key)])
         user_profile_actions = list([user_key_action, ])
