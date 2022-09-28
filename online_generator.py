@@ -376,11 +376,14 @@ class OnlineGenerator(object):
 
 
 def get_demo_jpa_flow():
+    dockers = dict()
+    dockers["mongo"] = DockerInfo("mongo:6.0.1", {
+        "MONGO_INITDB_ROOT_USERNAME": "root",
+        "MONGO_INITDB_ROOT_PASSWORD": "example"
+    })
     services = dict()
     services["mongo"] = ServiceInfo("192.168.0.22", 27017, "mongodb", ["jpa"], {
-        "MONGO_INITDB_ROOT_USERNAME": "jpa",
-        "MONGO_INITDB_ROOT_PASSWORD": "Dmetasoul_123456"
-
+        "uri": "mongodb://root:example@${MONGO_HOST:172.17.0.1}:${MONGO_PORT:27017}/jpa?authSource=admin",
     })
     user = DataSource("amazonfashion_user_feature", "mongo", "jpa", [{"user_id": "str"},
                                                                      {"user_bhv_item_seq": "str"}])
@@ -406,7 +409,7 @@ def get_demo_jpa_flow():
                                                     "user_id#brand", "user_id#category"]}],
                                      [CrossFeature("user_id#brand", "#", ["user_id", "brand"]),
                                       CrossFeature("user_id#category", "#", ["user_id", "category"])]))
-    return OnlineFlow(source, random_model, cf_models, twotower_models, rank_models, services, None)
+    return OnlineFlow(source, random_model, cf_models, twotower_models, rank_models, services, dockers)
 
 
 if __name__ == '__main__':

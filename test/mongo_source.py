@@ -81,6 +81,8 @@ def put_jpa_data(collection="jpa", host="127.0.0.1", port=27017):
     print("summary insert over!", mangodb_source.count("amazonfashion_item_summary", collection))
     mangodb_source.insert_json("amazonfashion_swing", collection, "./jpa/amazonfashion_swing.json")
     print("swing insert over!", mangodb_source.count("amazonfashion_swing", collection))
+    mangodb_source.insert_json("amazonfashion_pop", collection, "./jpa/amazonfashion_pop.json")
+    print("pop insert over!", mangodb_source.count("amazonfashion_pop", collection))
 
 
 if __name__ == "__main__":
